@@ -1,0 +1,30 @@
+Invalid argument: Go
+Did you mean:
+    `gibo dump Go VisualStudioCode`
+    `gibo list Go VisualStudioCode`
+    `gibo search Go VisualStudioCode`
+### Go
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+
+### VisualStudioCode
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+

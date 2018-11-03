@@ -1,0 +1,336 @@
+package hyutil
+
+//mainに以下が必要
+//import _ "github.com/go-sql-driver/mysql"
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"log"
+	"reflect"
+	"strings"
+)
+
+const dbTimeFormat = "2006-01-02T15:04:05-07:00"
+
+//DB への参照です
+type DB struct {
+	IsOpen      bool
+	Debug       bool
+	connection  *sql.DB
+	transaction *sql.Tx
+	hasErr      bool
+}
+
+//Row カラム名ごとに文字列型で値を代入したMap
+type Row struct {
+	Columns map[string]string
+}
+
+//Table 行の集合体
+type Table struct {
+	Rows []Row
+}
+
+//Modeler モデルインターフェイス
+type Modeler interface {
+	TableName() string
+}
+
+//DbBool はデータベース上でのBool値の表現文字列を返します。
+func DbBool(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+//DbEsc は文字列をエスケープ処理します
+func DbEsc(s string) string {
+
+	return "'" + strings.Replace(s, "'", "\\'", -1) + "'"
+
+}
+
+const dbDatetimeFormat = "2006-01-02 15:04:05"
+
+//DbDt はデータベース上でのDatetime値の表現文字列を返します。
+func DbDt(t *DateTime) string {
+
+	if t == nil {
+		return " NULL "
+	}
+
+	return t.Format(dbDatetimeFormat)
+
+}
+
+//DBNew データベースへの新規接続を開始します
+func DBNew(dbType string, connectionstr string) *DB {
+
+	db, err := sql.Open(dbType, connectionstr)
+
+	if err != nil {
+		log.Fatalln(err)
+		return &DB{IsOpen: false}
+	}
+
+	return &DB{
+		IsOpen:     true,
+		Debug:      false,
+		connection: db,
+		hasErr:     false,
+	}
+
+}
+
+//MysqlNew 任意のMysqlサーバへの接続を開始します
+func MysqlNew(connectionstr string) *DB {
+	return DBNew("mysql", connectionstr)
+}
+
+//BeginTx トランザクションを開始します
+func (db *DB) BeginTx() {
+
+	tx, err := db.connection.Begin()
+
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
+
+	db.transaction = tx
+
+}
+
+//Rollback トランザクションが開始されている場合、ロールバックします
+func (db *DB) Rollback() {
+
+	if db.transaction != nil {
+
+		db.transaction.Rollback()
+		db.transaction = nil
+	}
+
+}
+
+//Close DBへの接続を閉じます。未完了のトランザクションは”コミット”されます
+func (db *DB) Close() {
+
+	if db.connection != nil {
+
+		if db.transaction != nil {
+
+			if db.hasErr {
+				db.Rollback()
+			} else {
+				//オートコミット
+				db.transaction.Commit()
+			}
+		}
+
+		db.connection.Close()
+		db.IsOpen = false
+		db.connection = nil
+	}
+
+}
+
+//Exec INSERT、UPDATE、DELETEを実行します
+func (db *DB) Exec(query string) (int64, int64) {
+
+	if db.Debug {
+		log.Println("EXEC QUERY : " + query)
+	}
+
+	var result sql.Result
+	var err error
+
+	if db.transaction == nil {
+		result, err = db.connection.Exec(query)
+	} else {
+		result, err = db.transaction.Exec(query)
+	}
+
+	if err != nil {
+		log.Fatalln(err)
+		db.hasErr = true
+	}
+
+	ret1, err := result.RowsAffected()
+	ret2, err := result.LastInsertId()
+
+	if err != nil {
+		ret1 = -1
+		ret2 = 0
+		db.hasErr = true
+	}
+
+	return ret1, ret2
+
+}
+
+//SelectQuery SELECTを実行します
+func (db *DB) SelectQuery(query string) *Table {
+
+	if db.Debug {
+		log.Println("SELECT QUERY : " + query)
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	if db.transaction == nil {
+		rows, err = db.connection.Query(query)
+	} else {
+		rows, err = db.transaction.Query(query)
+	}
+
+	if err != nil {
+		log.Fatalln(err)
+		db.hasErr = true
+		return nil
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		log.Fatalln(err)
+		db.hasErr = true
+		return nil
+	}
+
+	var ret = Table{
+		Rows: make([]Row, 0),
+	}
+
+	values := make([]sql.NullString, len(columns))
+	scanArgs := make([]interface{}, len(columns))
+
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	for rows.Next() {
+
+		err = rows.Scan(scanArgs...)
+
+		if err != nil {
+			log.Fatalln(err)
+			db.hasErr = true
+			return nil
+		}
+
+		cols := make(map[string]string, len(columns))
+
+		for i, col := range values {
+
+			cols[columns[i]] = col.String
+
+		}
+
+		var row = Row{
+			Columns: cols,
+		}
+
+		ret.Rows = append(ret.Rows, row)
+
+	}
+
+	return &ret
+
+}
+
+// Get でmodelのプライマリーキーでデータを取得します。プライマリーが未指定の場合はデータが登録されません。
+func (db *DB) Get(model interface{}) error {
+
+	query, err := createSelectQuery(model)
+
+	if err != nil {
+		return err
+	}
+
+	tbl := db.SelectQuery(query)
+
+	if len(tbl.Rows) <= 0 {
+		return nil
+	}
+
+	DBFill(model, &tbl.Rows[0])
+
+	return nil
+}
+
+// DBFill はすでに存在するモデルにRowを展開します。プライマリーキーは考慮（再検索）されません。
+func DBFill(model interface{}, row *Row) {
+
+	ObjFill(model, row.Columns)
+
+}
+
+func createSelectQuery(model interface{}) (string, error) {
+
+	val := reflect.ValueOf(model)
+	tp := val.Type()
+
+	if tp.Kind() == reflect.Ptr {
+		val = val.Elem()
+		tp = tp.Elem()
+	}
+
+	if tp.Kind() != reflect.Struct {
+		return "", errors.New("引数が構造体ではありません")
+	}
+
+	columns := make([]string, 0)
+	pk := ""
+
+	tableName := CamelToSnake(tp.Name())
+
+	if m, ok := model.(Modeler); ok {
+		tableName = m.TableName()
+	}
+
+	var pkFieldName string
+
+	for i := 0; i < tp.NumField(); i++ {
+
+		field := tp.Field(i)
+
+		col := field.Tag.Get("json")
+		key := field.Tag.Get("hyudb")
+
+		if col == "" {
+			col = strings.ToLower(CamelToSnake(field.Name))
+		}
+
+		if key == "pk" {
+			pk = col
+			pkFieldName = field.Name
+		}
+
+		columns = append(columns, col)
+
+	}
+
+	if pk == "" {
+		return "", errors.New("PrimaryKeyが指定されていません")
+	}
+
+	keyprm := ""
+	i := val.FieldByName(pkFieldName)
+
+	switch v := i.Interface().(type) {
+	case string:
+		keyprm = DbEsc(v)
+	default:
+		keyprm = fmt.Sprint(i.Interface())
+	}
+
+	query :=
+		" SELECT " + strings.Join(columns, ",") +
+			" FROM " + tableName +
+			" WHERE " + pk + " = " + keyprm
+
+	return query, nil
+}
