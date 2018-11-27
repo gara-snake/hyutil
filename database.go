@@ -12,6 +12,9 @@ import (
 	"strings"
 )
 
+// NoID はInt型プライマリーキーの新規値です
+const NoID = -1
+
 const dbTimeFormat = "2006-01-02T15:04:05-07:00"
 
 //DB への参照です
@@ -48,7 +51,9 @@ func DbBool(b bool) string {
 
 //DbEsc は文字列をエスケープ処理します
 func DbEsc(s string) string {
-
+	if s == "" {
+		return "NULl"
+	}
 	return "'" + strings.Replace(s, "'", "\\'", -1) + "'"
 
 }
@@ -62,8 +67,13 @@ func DbDt(t *DateTime) string {
 		return " NULL "
 	}
 
-	return t.Format(dbDatetimeFormat)
+	return "'" + t.Format(dbDatetimeFormat) + "'"
 
+}
+
+//ColEsc はカラム名のエスケープです
+func ColEsc(s string) string {
+	return "`" + s + "`"
 }
 
 //DBNew データベースへの新規接続を開始します
@@ -137,7 +147,7 @@ func (db *DB) Close() {
 
 }
 
-//Exec INSERT、UPDATE、DELETEを実行します
+//Exec INSERT、UPDATE、DELETEを実行します RowsAffected LastInsertId
 func (db *DB) Exec(query string) (int64, int64) {
 
 	if db.Debug {
@@ -162,8 +172,8 @@ func (db *DB) Exec(query string) (int64, int64) {
 	ret2, err := result.LastInsertId()
 
 	if err != nil {
-		ret1 = -1
-		ret2 = 0
+		ret1 = 0
+		ret2 = NoID
 		db.hasErr = true
 	}
 
@@ -253,7 +263,7 @@ func (db *DB) Get(model interface{}) error {
 	tbl := db.SelectQuery(query)
 
 	if len(tbl.Rows) <= 0 {
-		return nil
+		return errors.New("DB.Get:該当するレコードがありません")
 	}
 
 	DBFill(model, &tbl.Rows[0])
@@ -297,8 +307,17 @@ func createSelectQuery(model interface{}) (string, error) {
 
 		field := tp.Field(i)
 
-		col := field.Tag.Get("json")
+		col := field.Tag.Get("hyudb_col")
+
+		if col == "" {
+			col = field.Tag.Get("json")
+		}
+
 		key := field.Tag.Get("hyudb")
+
+		if key == "non" {
+			continue
+		}
 
 		if col == "" {
 			col = strings.ToLower(CamelToSnake(field.Name))
@@ -309,6 +328,8 @@ func createSelectQuery(model interface{}) (string, error) {
 			pkFieldName = field.Name
 		}
 
+		//DB予約文字エスケープ
+		col = ColEsc(col)
 		columns = append(columns, col)
 
 	}
@@ -330,7 +351,201 @@ func createSelectQuery(model interface{}) (string, error) {
 	query :=
 		" SELECT " + strings.Join(columns, ",") +
 			" FROM " + tableName +
-			" WHERE " + pk + " = " + keyprm
+			" WHERE " + ColEsc(pk) + " = " + keyprm
 
 	return query, nil
+}
+
+// Save 要素を作成または更新します
+func (db *DB) Save(model interface{}) error {
+
+	val := reflect.ValueOf(model)
+	tp := val.Type()
+
+	if tp.Kind() == reflect.Ptr {
+		val = val.Elem()
+		tp = tp.Elem()
+	}
+
+	if tp.Kind() != reflect.Struct {
+		return errors.New("引数が構造体ではありません")
+	}
+
+	var pkVal *reflect.Value
+	var pkName string
+
+	isNew := false
+
+	for i := 0; i < tp.NumField(); i++ {
+
+		field := tp.Field(i)
+		key := field.Tag.Get("hyudb")
+
+		if key == "non" {
+			continue
+		}
+
+		if key == "pk" {
+			v := val.FieldByName(field.Name)
+			pkVal = &v
+			pkName = field.Name
+			break
+		}
+
+	}
+
+	if pkVal == nil {
+		return errors.New("プライマリーキーの指定がありません")
+	}
+
+	switch v := pkVal.Interface().(type) {
+	case int, int32, int64:
+		isNew = (fmt.Sprint(v) == fmt.Sprint(NoID))
+	default:
+		return errors.New("プライマーキーの型が不明です。")
+	}
+
+	if isNew {
+		query := createInsertQuery(model, val, tp)
+
+		_, id := db.Exec(query)
+		if id != NoID {
+			pkVal.SetInt(id)
+		}
+
+	} else {
+		query := createUpdateQuery(model, pkName, fmt.Sprint(pkVal.Interface()), val, tp)
+
+		db.Exec(query)
+	}
+
+	return nil
+}
+
+const (
+	mapIns int = iota
+	mapUpd
+)
+
+func createInsertQuery(model interface{}, val reflect.Value, tp reflect.Type) string {
+
+	columns := make([]string, 0)
+	vals := make([]string, 0)
+
+	tableName := CamelToSnake(tp.Name())
+
+	if m, ok := model.(Modeler); ok {
+		tableName = m.TableName()
+	}
+
+	colVal := createColValMap(val, tp, mapIns)
+
+	// カラム名と値文字列の順番を揃える
+	for k, v := range colVal {
+		columns = append(columns, k)
+		vals = append(vals, v)
+	}
+
+	query :=
+		" INSERT INTO " + tableName + " (" +
+			strings.Join(columns, ",") +
+			" ) VALUES ( " +
+			strings.Join(vals, ",") +
+			" ) "
+
+	return query
+
+}
+
+func createUpdateQuery(model interface{}, pkName string, pkVal string, val reflect.Value, tp reflect.Type) string {
+
+	sets := make([]string, 0)
+
+	tableName := CamelToSnake(tp.Name())
+
+	if m, ok := model.(Modeler); ok {
+		tableName = m.TableName()
+	}
+
+	colVal := createColValMap(val, tp, mapUpd)
+
+	// カラム名と値文字列の順番を揃える
+	for k, v := range colVal {
+		sets = append(sets, k+" = "+v)
+	}
+
+	query :=
+		" UPDATE " + tableName + " SET " +
+			strings.Join(sets, ",") +
+			" WHERE " + ColEsc(pkName) + " = " + pkVal
+
+	return query
+}
+
+func createColValMap(val reflect.Value, tp reflect.Type, mode int) map[string]string {
+
+	ret := make(map[string]string)
+
+	for i := 0; i < tp.NumField(); i++ {
+
+		field := tp.Field(i)
+		col := field.Tag.Get("json")
+		key := field.Tag.Get("hyudb")
+
+		if key == "pk" {
+			continue
+		}
+
+		if key == "non" {
+			continue
+		}
+
+		if col == "" {
+			col = strings.ToLower(CamelToSnake(field.Name))
+		}
+
+		//DB予約文字エスケープ
+		col = ColEsc(col)
+
+		switch v := val.FieldByName(field.Name).Interface().(type) {
+		case string:
+			ret[col] = DbEsc(v)
+		case DateTime:
+			if v == DateTimeZero {
+				ret[col] = "NULL"
+			} else {
+				ret[col] = DbDt(&v)
+			}
+
+		case bool:
+			if v {
+				ret[col] = "1"
+			} else {
+				ret[col] = "0"
+			}
+		case nil:
+			ret[col] = "NULL"
+		default:
+			ret[col] = fmt.Sprint(v)
+		}
+
+	}
+
+	return ret
+}
+
+// Del 要素を論理削除します
+func (db *DB) Del(model interface{}) error {
+
+	return nil
+}
+
+func createDeleteQuery(model interface{}) (string, error) {
+
+	return "", nil
+}
+
+func createDeleteForeverQuery(model interface{}) (string, error) {
+
+	return "", nil
 }

@@ -11,6 +11,10 @@ import (
 //ObjFill はmap[string]stringを変換してmodelに展開します。
 func ObjFill(model interface{}, row map[string]string) {
 
+	if bf, ok := model.(BeforeFiller); ok {
+		bf.FillBefore()
+	}
+
 	tp := reflect.TypeOf(model)
 	val := reflect.ValueOf(model)
 
@@ -20,7 +24,7 @@ func ObjFill(model interface{}, row map[string]string) {
 	}
 
 	if tp.Kind() != reflect.Struct {
-		log.Println("ObjFill:タイプ取得不正")
+		log.Println("ObjFill:タイプ取得不正：" + tp.Kind().String())
 		return
 	}
 
@@ -40,6 +44,10 @@ func ObjFill(model interface{}, row map[string]string) {
 			convData(&dest, valStr)
 		}
 
+	}
+
+	if af, ok := model.(AfterFiller); ok {
+		af.FillAfter()
 	}
 
 }
@@ -74,13 +82,19 @@ func convData(dest *reflect.Value, valStr string) {
 		case DateTime:
 
 			if valStr != "" {
-				t, _ := time.Parse(dbTimeFormat, valStr)
+				t, err := time.Parse(dbTimeFormat, valStr)
 
-				set := reflect.ValueOf(DateTime{
-					Time: &t,
-				})
+				if err != nil {
+					dt := DatetimeParse(valStr)
+					set := reflect.ValueOf(dt)
+					dest.Set(set)
+				} else {
+					set := reflect.ValueOf(DateTime{
+						Time: &t,
+					})
+					dest.Set(set)
+				}
 
-				dest.Set(set)
 			}
 
 		}
@@ -89,4 +103,14 @@ func convData(dest *reflect.Value, valStr string) {
 		log.Println("no case " + dest.Kind().String())
 	}
 
+}
+
+//BeforeFiller Fill系メソッドで前処理を定義する
+type BeforeFiller interface {
+	FillBefore()
+}
+
+//AfterFiller Fill系メソッドで後処理を定義する
+type AfterFiller interface {
+	FillAfter()
 }
