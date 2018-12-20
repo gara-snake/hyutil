@@ -1,4 +1,4 @@
-package hyutil
+package hyudb
 
 //mainに以下が必要
 //import _ "github.com/go-sql-driver/mysql"
@@ -7,13 +7,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"hyutil"
 	"log"
 	"reflect"
 	"strings"
 )
 
 // NoID はInt型プライマリーキーの新規値です
-const NoID = -1
+const NoID = 0
 
 const dbTimeFormat = "2006-01-02T15:04:05-07:00"
 
@@ -41,6 +42,9 @@ type Modeler interface {
 	TableName() string
 }
 
+// DBID id型 NOT NULL 成約のために必要
+type DBID int64
+
 //DbBool はデータベース上でのBool値の表現文字列を返します。
 func DbBool(b bool) string {
 	if b {
@@ -52,7 +56,7 @@ func DbBool(b bool) string {
 //DbEsc は文字列をエスケープ処理します
 func DbEsc(s string) string {
 	if s == "" {
-		return "NULl"
+		return "NULL"
 	}
 	return "'" + strings.Replace(s, "'", "\\'", -1) + "'"
 
@@ -61,7 +65,7 @@ func DbEsc(s string) string {
 const dbDatetimeFormat = "2006-01-02 15:04:05"
 
 //DbDt はデータベース上でのDatetime値の表現文字列を返します。
-func DbDt(t *DateTime) string {
+func DbDt(t *hyutil.DateTime) string {
 
 	if t == nil {
 		return " NULL "
@@ -76,8 +80,8 @@ func ColEsc(s string) string {
 	return "`" + s + "`"
 }
 
-//DBNew データベースへの新規接続を開始します
-func DBNew(dbType string, connectionstr string) *DB {
+//New データベースへの新規接続を開始します
+func New(dbType string, connectionstr string) *DB {
 
 	db, err := sql.Open(dbType, connectionstr)
 
@@ -97,7 +101,7 @@ func DBNew(dbType string, connectionstr string) *DB {
 
 //MysqlNew 任意のMysqlサーバへの接続を開始します
 func MysqlNew(connectionstr string) *DB {
-	return DBNew("mysql", connectionstr)
+	return New("mysql", connectionstr)
 }
 
 //BeginTx トランザクションを開始します
@@ -274,7 +278,7 @@ func (db *DB) Get(model interface{}) error {
 // DBFill はすでに存在するモデルにRowを展開します。プライマリーキーは考慮（再検索）されません。
 func DBFill(model interface{}, row *Row) {
 
-	ObjFill(model, row.Columns)
+	hyutil.ObjFill(model, row.Columns)
 
 }
 
@@ -295,7 +299,7 @@ func createSelectQuery(model interface{}) (string, error) {
 	columns := make([]string, 0)
 	pk := ""
 
-	tableName := CamelToSnake(tp.Name())
+	tableName := hyutil.CamelToSnake(tp.Name())
 
 	if m, ok := model.(Modeler); ok {
 		tableName = m.TableName()
@@ -307,20 +311,24 @@ func createSelectQuery(model interface{}) (string, error) {
 
 		field := tp.Field(i)
 
-		col := field.Tag.Get("hyudb_col")
-
-		if col == "" {
-			col = field.Tag.Get("json")
-		}
-
 		key := field.Tag.Get("hyudb")
 
 		if key == "non" {
 			continue
 		}
 
+		// カラム名作成
+		col := field.Tag.Get("hyudb_col")
+		alias := ""
+
 		if col == "" {
-			col = strings.ToLower(CamelToSnake(field.Name))
+			col = field.Tag.Get("json")
+		} else {
+			alias = field.Tag.Get("json")
+		}
+
+		if col == "" {
+			col = strings.ToLower(hyutil.CamelToSnake(field.Name))
 		}
 
 		if key == "pk" {
@@ -328,8 +336,13 @@ func createSelectQuery(model interface{}) (string, error) {
 			pkFieldName = field.Name
 		}
 
+		if alias != "" {
+			col = ColEsc(col) + " AS " + alias
+		} else {
+			col = ColEsc(col)
+		}
+
 		//DB予約文字エスケープ
-		col = ColEsc(col)
 		columns = append(columns, col)
 
 	}
@@ -344,6 +357,8 @@ func createSelectQuery(model interface{}) (string, error) {
 	switch v := i.Interface().(type) {
 	case string:
 		keyprm = DbEsc(v)
+	case DBID:
+		keyprm = fmt.Sprint(v)
 	default:
 		keyprm = fmt.Sprint(i.Interface())
 	}
@@ -351,7 +366,7 @@ func createSelectQuery(model interface{}) (string, error) {
 	query :=
 		" SELECT " + strings.Join(columns, ",") +
 			" FROM " + tableName +
-			" WHERE " + ColEsc(pk) + " = " + keyprm
+			" WHERE " + pk + " = " + keyprm
 
 	return query, nil
 }
@@ -399,7 +414,7 @@ func (db *DB) Save(model interface{}) error {
 	}
 
 	switch v := pkVal.Interface().(type) {
-	case int, int32, int64:
+	case int, int32, int64, DBID:
 		isNew = (fmt.Sprint(v) == fmt.Sprint(NoID))
 	default:
 		return errors.New("プライマーキーの型が不明です。")
@@ -432,7 +447,7 @@ func createInsertQuery(model interface{}, val reflect.Value, tp reflect.Type) st
 	columns := make([]string, 0)
 	vals := make([]string, 0)
 
-	tableName := CamelToSnake(tp.Name())
+	tableName := hyutil.CamelToSnake(tp.Name())
 
 	if m, ok := model.(Modeler); ok {
 		tableName = m.TableName()
@@ -461,7 +476,7 @@ func createUpdateQuery(model interface{}, pkName string, pkVal string, val refle
 
 	sets := make([]string, 0)
 
-	tableName := CamelToSnake(tp.Name())
+	tableName := hyutil.CamelToSnake(tp.Name())
 
 	if m, ok := model.(Modeler); ok {
 		tableName = m.TableName()
@@ -489,7 +504,13 @@ func createColValMap(val reflect.Value, tp reflect.Type, mode int) map[string]st
 	for i := 0; i < tp.NumField(); i++ {
 
 		field := tp.Field(i)
-		col := field.Tag.Get("json")
+
+		col := field.Tag.Get("hyudb_col")
+
+		if col == "" {
+			col = field.Tag.Get("json")
+		}
+
 		key := field.Tag.Get("hyudb")
 
 		if key == "pk" {
@@ -501,7 +522,7 @@ func createColValMap(val reflect.Value, tp reflect.Type, mode int) map[string]st
 		}
 
 		if col == "" {
-			col = strings.ToLower(CamelToSnake(field.Name))
+			col = strings.ToLower(hyutil.CamelToSnake(field.Name))
 		}
 
 		//DB予約文字エスケープ
@@ -510,13 +531,18 @@ func createColValMap(val reflect.Value, tp reflect.Type, mode int) map[string]st
 		switch v := val.FieldByName(field.Name).Interface().(type) {
 		case string:
 			ret[col] = DbEsc(v)
-		case DateTime:
-			if v == DateTimeZero {
+		case hyutil.DateTime:
+			if v == hyutil.DateTimeZero {
 				ret[col] = "NULL"
 			} else {
 				ret[col] = DbDt(&v)
 			}
-
+		case DBID:
+			if v <= 0 {
+				ret[col] = "NULL"
+			} else {
+				ret[col] = fmt.Sprint(v)
+			}
 		case bool:
 			if v {
 				ret[col] = "1"
@@ -534,7 +560,7 @@ func createColValMap(val reflect.Value, tp reflect.Type, mode int) map[string]st
 	return ret
 }
 
-// Del 要素を論理削除します
+// Del 要素を論理削除します TODO
 func (db *DB) Del(model interface{}) error {
 
 	return nil

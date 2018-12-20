@@ -1,7 +1,6 @@
-package hyutil_test
+package hyudb_test
 
 import (
-	"hyutil"
 	"testing"
 
 	"github.com/cheekybits/is"

@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 )
 
 //ObjFill はmap[string]stringを変換してmodelに展開します。
@@ -82,19 +81,9 @@ func convData(dest *reflect.Value, valStr string) {
 		case DateTime:
 
 			if valStr != "" {
-				t, err := time.Parse(dbTimeFormat, valStr)
-
-				if err != nil {
-					dt := DatetimeParse(valStr)
-					set := reflect.ValueOf(dt)
-					dest.Set(set)
-				} else {
-					set := reflect.ValueOf(DateTime{
-						Time: &t,
-					})
-					dest.Set(set)
-				}
-
+				dt := DatetimeParse(valStr)
+				set := reflect.ValueOf(dt)
+				dest.Set(set)
 			}
 
 		}

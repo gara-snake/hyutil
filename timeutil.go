@@ -7,7 +7,11 @@ import (
 	"time"
 )
 
-const parseTimeFormat = "2006-01-02T15:04:05-07:00"
+const parseTimeFormat1 = "2006-01-02T15:04:05-07:00"
+
+const parseTimeFormat2 = "2006/01/02 15:04:05 -0700"
+
+const parseTimeFormat3 = "2006-01-02T15:04:05Z"
 
 const dateFormat = "2006-01-02"
 
@@ -41,26 +45,40 @@ func DatetimeParse(s string) DateTime {
 		return DateTimeZero
 	}
 
-	t, err := time.Parse(parseTimeFormat, s)
+	formats := []string{parseTimeFormat1, parseTimeFormat2, parseTimeFormat3, dateFormat}
 
-	if err != nil {
+	for _, f := range formats {
 
-		t, err := time.Parse(dateFormat, s)
+		t, err := time.Parse(f, s)
 
-		if err != nil {
-			log.Println(err)
+		if err == nil {
+			if f == parseTimeFormat3 {
+				//末尾Zの場合はUTCなのでローカル時間に変える
+				if loc, e := time.LoadLocation("Asia/Tokyo"); e == nil {
+					t = t.In(loc)
+				}
+			}
+
+			return DateTime{&t}
 		}
-
-		return DateTime{&t}
 	}
 
-	return DateTime{&t}
+	return DateTimeZero
 }
 
 //UnmarshalJSON はJson文字列から要素を取得する処理です
 func (t *DateTime) UnmarshalJSON(data []byte) error {
 
-	time, err := time.Parse("\""+DateTimeFormat+"\"", string(data))
+	str := string(data)
+	if str == "" || str == "\"\"" {
+		*t = DateTimeZero
+		return nil
+	}
+
+	time, err := time.Parse("\""+DateTimeFormat+"\"", str)
+	if err != nil {
+		log.Println("str : " + str)
+	}
 	*t = DateTime{&time}
 	return err
 }
@@ -79,6 +97,27 @@ func (t *DateTime) String() string {
 		return ""
 	}
 	return t.Format(DateTimeFormat)
+}
+
+//FirstDay 日にちを月初に設定します
+func (t *DateTime) FirstDay() *DateTime {
+
+	newTime := time.Date(t.Year(), t.Month(), 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+
+	t.Time = &newTime
+
+	return t
+}
+
+//LastDay 日にちを月末に設定します
+func (t *DateTime) LastDay() *DateTime {
+
+	newTime := time.Date(t.Year(), t.Month()+1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+	newTime = newTime.AddDate(0, 0, -1)
+
+	t.Time = &newTime
+
+	return t
 }
 
 //SetHour 時を設定します
