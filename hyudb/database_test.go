@@ -1,6 +1,8 @@
 package hyudb_test
 
 import (
+	"hyutil"
+	"hyutil/hyudb"
 	"testing"
 
 	"github.com/cheekybits/is"
@@ -28,7 +30,7 @@ func TestSelect(t *testing.T) {
 
 	is := is.New(t)
 
-	db := hyutil.MysqlNew(connectionString)
+	db := hyudb.MysqlNew(connectionString)
 
 	tbl := db.SelectQuery(" SELECT * FROM hr_employee ")
 
@@ -41,7 +43,7 @@ func TestGet(t *testing.T) {
 
 	is := is.New(t)
 
-	db := hyutil.MysqlNew(connectionString)
+	db := hyudb.MysqlNew(connectionString)
 
 	obj := &TestObj{
 		ID: 1,
