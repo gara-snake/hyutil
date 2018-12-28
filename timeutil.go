@@ -26,6 +26,16 @@ type DateTime struct {
 	*time.Time
 }
 
+// Date 任意の日付のNowDateTimeを作成する
+func Date(y int, m int, d int) DateTime {
+	n := time.Date(y, time.Month(m), d, 0, 0, 0, 0, time.Local)
+	dt := DateTime{}
+
+	dt.Time = &n
+
+	return dt
+}
+
 // NowDateTime 現在時間のDateTimeを作成する
 func NowDateTime() DateTime {
 	n := time.Now()
@@ -34,6 +44,19 @@ func NowDateTime() DateTime {
 	dt.Time = &n
 
 	return dt
+}
+
+// CopyDateTime DateTimeをコピーして新しいDateTimeを返却する
+func CopyDateTime(dt DateTime) DateTime {
+
+	ndt := DateTime{}
+
+	t := dt.Time
+	nt := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
+
+	ndt.Time = &nt
+
+	return ndt
 }
 
 //DateTimeFormat はシステム内の標準日付、時間書式です
@@ -120,6 +143,20 @@ func (t *DateTime) LastDay() *DateTime {
 	return t
 }
 
+// AddMonth 月を加算する
+func (t *DateTime) AddMonth(m int) *DateTime {
+
+	if m < 0 {
+		return t
+	}
+
+	newTime := t.AddDate(0, m, 0)
+
+	t.Time = &newTime
+
+	return t
+}
+
 //SetHour 時を設定します
 func (t *DateTime) SetHour(h int) *DateTime {
 
@@ -134,14 +171,28 @@ func (t *DateTime) SetHour(h int) *DateTime {
 	return t
 }
 
-//SetMinutes 分を設定します
+//SetMinutes 分を設定します。秒とナノ秒は0にリセットされます
 func (t *DateTime) SetMinutes(m int) *DateTime {
 
 	if m < 0 && 59 < m {
 		return t
 	}
 
-	newTime := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), m, t.Second(), t.Nanosecond(), time.Local)
+	newTime := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), m, 0, 0, time.Local)
+
+	t.Time = &newTime
+
+	return t
+}
+
+//SetSecond 分を設定します。ナノ秒は0にリセットされます
+func (t *DateTime) SetSecond(s int) *DateTime {
+
+	if s < 0 && 59 < s {
+		return t
+	}
+
+	newTime := time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), s, 0, time.Local)
 
 	t.Time = &newTime
 
@@ -156,6 +207,19 @@ func (t *DateTime) FirstTime() *DateTime {
 // LastTime 時と分を23：59にします。
 func (t *DateTime) LastTime() *DateTime {
 	return t.SetHour(23).SetMinutes(59)
+}
+
+//CalcAge 日時を基準に年齢相当の数値を返却する
+func (t *DateTime) CalcAge(d *DateTime) int32 {
+
+	now := d.Time.Format(dateFormatOnlyNumber)
+	birthday := t.Time.Format(dateFormatOnlyNumber)
+
+	nowInt, _ := strconv.Atoi(now)
+
+	birthdayInt, _ := strconv.Atoi(birthday)
+
+	return int32((nowInt - birthdayInt) / 10000)
 }
 
 //CalcAgeNow 現在日時を基準に年齢相当の数値を返却する
