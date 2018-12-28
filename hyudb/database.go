@@ -132,6 +132,10 @@ func (db *DB) Rollback() {
 //Close DBへの接続を閉じます。未完了のトランザクションは”コミット”されます
 func (db *DB) Close() {
 
+	if err := recover(); err != nil {
+		db.Rollback()
+	}
+
 	if db.connection != nil {
 
 		if db.transaction != nil {
@@ -179,6 +183,7 @@ func (db *DB) Exec(query string) (int64, int64) {
 		ret1 = 0
 		ret2 = NoID
 		db.hasErr = true
+		return -1, -1
 	}
 
 	return ret1, ret2
