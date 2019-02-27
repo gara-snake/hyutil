@@ -180,6 +180,7 @@ func (db *DB) Exec(query string) (int64, int64) {
 	ret2, err := result.LastInsertId()
 
 	if err != nil {
+		log.Println(err)
 		ret1 = 0
 		ret2 = NoID
 		db.hasErr = true
