@@ -32,7 +32,6 @@ func Date(y int, m int, d int) DateTime {
 	dt := DateTime{}
 
 	dt.Time = &n
-
 	return dt
 }
 
@@ -120,6 +119,12 @@ func (t *DateTime) String() string {
 		return ""
 	}
 	return t.Format(DateTimeFormat)
+}
+
+// DayOfWeekStr は曜日の文字列表現を返却ます
+func (t *DateTime) DayOfWeekStr() string {
+	wdays := [...]string{"日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"}
+	return wdays[t.Weekday()]
 }
 
 //FirstDay 日にちを月初に設定します
