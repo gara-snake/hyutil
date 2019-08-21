@@ -30,7 +30,11 @@ func ObjFill(model interface{}, row map[string]string) {
 	for i := 0; i < tp.NumField(); i++ {
 
 		field := tp.Field(i)
-		colname := field.Tag.Get("json")
+		colname := field.Tag.Get("hyudb_col") // ここに混ぜるのが果たしてよいのか。。
+
+		if colname == "" {
+			colname = field.Tag.Get("json")
+		}
 
 		if colname == "" {
 			colname = strings.ToLower(CamelToSnake(field.Name))
