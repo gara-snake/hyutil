@@ -140,8 +140,7 @@ func (t *DateTime) FirstDay() *DateTime {
 //LastDay 日にちを月末に設定します
 func (t *DateTime) LastDay() *DateTime {
 
-	newTime := time.Date(t.Year(), t.Month()+1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
-	newTime = newTime.AddDate(0, 0, -1)
+	newTime := time.Date(t.Year(), t.Month()+1, 0, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
 
 	t.Time = &newTime
 
@@ -151,11 +150,17 @@ func (t *DateTime) LastDay() *DateTime {
 // AddMonth 月を加算する
 func (t *DateTime) AddMonth(m int) *DateTime {
 
-	if m < 0 {
-		return t
-	}
-
 	newTime := t.AddDate(0, m, 0)
+
+	t.Time = &newTime
+
+	return t
+}
+
+// AddDay 日を加算する
+func (t *DateTime) AddDay(d int) *DateTime {
+
+	newTime := t.AddDate(0, 0, d)
 
 	t.Time = &newTime
 

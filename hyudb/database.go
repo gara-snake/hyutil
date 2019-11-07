@@ -62,6 +62,11 @@ func DbEsc(s string) string {
 
 }
 
+//DbNum は数値の文字列表現を返します
+func DbNum(num interface{}) string {
+	return fmt.Sprint(num)
+}
+
 const dbDatetimeFormat = "2006-01-02 15:04:05"
 
 //DbDt はデータベース上でのDatetime値の表現文字列を返します。
@@ -73,6 +78,14 @@ func DbDt(t *hyutil.DateTime) string {
 
 	return "'" + t.Format(dbDatetimeFormat) + "'"
 
+}
+
+// Nval 空文字列を空白に変換します
+func Nval(s string) string {
+	if s == "" {
+		return " "
+	}
+	return s
 }
 
 //ColEsc はカラム名のエスケープです
@@ -189,6 +202,20 @@ func (db *DB) Exec(query string) (int64, int64) {
 
 	return ret1, ret2
 
+}
+
+// SelectTop queryを実行し、先頭の要素をDBFillします
+func (db *DB) SelectTop(query string, model interface{}) error {
+
+	tbl := db.SelectQuery(query)
+	for _, r := range tbl.Rows {
+
+		DBFill(model, &r)
+		return nil
+
+	}
+
+	return errors.New("レコードが取得できませんでした。")
 }
 
 //SelectQuery SELECTを実行します
