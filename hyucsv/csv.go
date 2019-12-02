@@ -48,16 +48,15 @@ func (row *CsvRow) Decode(obj interface{}) {
 		buf[k] = v
 	}
 
-	hyutil.ObjFill(obj, buf)
+	hyutil.ObjFill(obj, buf, false)
 
 }
 
 func addEx(name string) string {
 	if strings.HasSuffix(name, extension) {
 		return name
-	} else {
-		return name + extension
 	}
+	return name + extension
 }
 
 // Create Csvデータを作成する
@@ -87,8 +86,22 @@ func Create(name string, fields []CsvField, data []interface{}) *Csv {
 	return csv
 }
 
+// CreateType CSV作成種別
+type CreateType int
+
+// CreateTypeKeyLabel "キー値:ラベル"で格納する
+var CreateTypeKeyLabel CreateType = 0
+
+// CreateTypeLabel label値のみで格納する
+var CreateTypeLabel CreateType = 1
+
 // CreateFromFile Csvデータを作成する
 func CreateFromFile(name string, fields []CsvField, r io.Reader) *Csv {
+	return CreateFromFileEx(name, fields, r, CreateTypeKeyLabel)
+}
+
+// CreateFromFileEx Csvデータを作成する
+func CreateFromFileEx(name string, fields []CsvField, r io.Reader, opt CreateType) *Csv {
 
 	csv := &Csv{
 		Name:   addEx(name),
@@ -120,10 +133,20 @@ func CreateFromFile(name string, fields []CsvField, r io.Reader) *Csv {
 				h = strings.Trim(h, " ")
 				h = strings.Trim(h, "　")
 
-				if f.String() == h {
+				var headerText string
+
+				switch opt {
+				case CreateTypeLabel:
+					headerText = f.Label
+				default:
+					headerText = f.String()
+				}
+
+				if headerText == h {
 					val := strings.Trim(row[i], " ")
 					val = strings.Trim(row[i], "　")
 					csvRow[f.Key] = val
+
 					break
 				}
 			}

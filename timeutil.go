@@ -13,6 +13,8 @@ const parseTimeFormat2 = "2006/01/02 15:04:05 -0700"
 
 const parseTimeFormat3 = "2006-01-02T15:04:05Z"
 
+const parseTimeFormat4 = "2006/01/02 15:04:05"
+
 const dateFormat = "2006-01-02"
 
 //年齢計算用
@@ -67,7 +69,13 @@ func DatetimeParse(s string) DateTime {
 		return DateTimeZero
 	}
 
-	formats := []string{parseTimeFormat1, parseTimeFormat2, parseTimeFormat3, dateFormat}
+	formats := []string{
+		parseTimeFormat1,
+		parseTimeFormat2,
+		parseTimeFormat3,
+		parseTimeFormat4,
+		dateFormat,
+	}
 
 	for _, f := range formats {
 
@@ -147,6 +155,16 @@ func (t *DateTime) LastDay() *DateTime {
 	return t
 }
 
+// AddYear 年を加算する
+func (t *DateTime) AddYear(y int) *DateTime {
+
+	newTime := t.AddDate(y, 0, 0)
+
+	t.Time = &newTime
+
+	return t
+}
+
 // AddMonth 月を加算する
 func (t *DateTime) AddMonth(m int) *DateTime {
 
@@ -161,6 +179,16 @@ func (t *DateTime) AddMonth(m int) *DateTime {
 func (t *DateTime) AddDay(d int) *DateTime {
 
 	newTime := t.AddDate(0, 0, d)
+
+	t.Time = &newTime
+
+	return t
+}
+
+// AddHour 時間を加算する
+func (t *DateTime) AddHour(h time.Duration) *DateTime {
+
+	newTime := t.Add(h * time.Hour)
 
 	t.Time = &newTime
 

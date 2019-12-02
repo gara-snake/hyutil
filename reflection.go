@@ -8,7 +8,7 @@ import (
 )
 
 //ObjFill はmap[string]stringを変換してmodelに展開します。
-func ObjFill(model interface{}, row map[string]string) {
+func ObjFill(model interface{}, row map[string]string, isBbfil bool) {
 
 	if bf, ok := model.(BeforeFiller); ok {
 		bf.FillBefore()
@@ -30,7 +30,12 @@ func ObjFill(model interface{}, row map[string]string) {
 	for i := 0; i < tp.NumField(); i++ {
 
 		field := tp.Field(i)
-		colname := field.Tag.Get("hyudb_col") // ここに混ぜるのが果たしてよいのか。。
+		// ここに混ぜるのはよくなかった・・・
+		var colname string
+
+		if isBbfil {
+			colname = field.Tag.Get("hyudb_col")
+		}
 
 		if colname == "" {
 			colname = field.Tag.Get("json")

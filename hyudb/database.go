@@ -204,6 +204,34 @@ func (db *DB) Exec(query string) (int64, int64) {
 
 }
 
+// SelectExists queryで行が取得できたかどうかを返却します
+func (db *DB) SelectExists(query string) bool {
+
+	if db.Debug {
+		log.Println("SELECT QUERY : " + query)
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	if db.transaction == nil {
+		rows, err = db.connection.Query(query)
+	} else {
+		rows, err = db.transaction.Query(query)
+	}
+
+	if err != nil {
+		log.Fatalln(err)
+		db.hasErr = true
+		return false
+	}
+
+	defer rows.Close()
+
+	return rows.Next()
+
+}
+
 // SelectTop queryを実行し、先頭の要素をDBFillします
 func (db *DB) SelectTop(query string, model interface{}) error {
 
@@ -233,6 +261,8 @@ func (db *DB) SelectQuery(query string) *Table {
 	} else {
 		rows, err = db.transaction.Query(query)
 	}
+
+	defer rows.Close()
 
 	if err != nil {
 		log.Fatalln(err)
@@ -311,7 +341,7 @@ func (db *DB) Get(model interface{}) error {
 // DBFill はすでに存在するモデルにRowを展開します。プライマリーキーは考慮（再検索）されません。
 func DBFill(model interface{}, row *Row) {
 
-	hyutil.ObjFill(model, row.Columns)
+	hyutil.ObjFill(model, row.Columns, true)
 
 }
 
@@ -357,7 +387,8 @@ func createSelectQuery(model interface{}) (string, error) {
 		if col == "" {
 			col = field.Tag.Get("json")
 		} else {
-			alias = field.Tag.Get("json")
+			// DBFillでhyudb_colが優先されたのでエイリアスは不要に
+			// alias = field.Tag.Get("json")
 		}
 
 		if col == "" {
