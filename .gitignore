@@ -18,7 +18,6 @@ Did you mean:
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-
 ### VisualStudioCode
 
 .vscode/*

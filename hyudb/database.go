@@ -10,6 +10,7 @@ import (
 	"hyutil"
 	"log"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -244,6 +245,21 @@ func (db *DB) SelectTop(query string, model interface{}) error {
 	}
 
 	return errors.New("レコードが取得できませんでした。")
+}
+
+// SelectCount queryを実行し、先頭の要素、列名countsをintで返却します
+func (db *DB) SelectCount(query string) (int, error) {
+
+	tbl := db.SelectQuery(query)
+	for _, r := range tbl.Rows {
+
+		c := r.Columns["counts"]
+		if ret, e := strconv.Atoi(c); e == nil {
+			return ret, nil
+		}
+	}
+
+	return 0, errors.New("レコードが取得できませんでした。")
 }
 
 //SelectQuery SELECTを実行します
