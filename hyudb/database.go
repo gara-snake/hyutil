@@ -194,6 +194,7 @@ func (db *DB) Exec(query string) (int64, int64) {
 	ret2, err := result.LastInsertId()
 
 	if err != nil {
+		log.Println("Error query : " + query)
 		log.Println(err)
 		ret1 = 0
 		ret2 = NoID
@@ -281,6 +282,7 @@ func (db *DB) SelectQuery(query string) *Table {
 	defer rows.Close()
 
 	if err != nil {
+		log.Println("Error query : " + query)
 		log.Fatalln(err)
 		db.hasErr = true
 		return nil
