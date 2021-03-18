@@ -113,7 +113,7 @@ func (t *DateTime) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-//MarshalJSON はJson文字列化化する処理です
+//MarshalJSON はJson文字列化する処理です
 func (t DateTime) MarshalJSON() ([]byte, error) {
 	if t == DateTimeZero {
 		return json.Marshal("")

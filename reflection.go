@@ -84,6 +84,9 @@ func convData(dest *reflect.Value, valStr string) {
 		if valStr == "1" {
 			b = true
 		}
+		if valStr == "true" {
+			b = true
+		}
 		dest.SetBool(b)
 	case reflect.Struct:
 		switch dest.Interface().(type) {
@@ -94,7 +97,8 @@ func convData(dest *reflect.Value, valStr string) {
 				set := reflect.ValueOf(dt)
 				dest.Set(set)
 			}
-
+		default:
+			log.Println("no case " + dest.Kind().String())
 		}
 
 	default:
