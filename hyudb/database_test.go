@@ -1,9 +1,10 @@
 package hyudb_test
 
 import (
-	"hyutil"
-	"hyutil/hyudb"
 	"testing"
+
+	"github.com/gara-snake/hyutil"
+	"github.com/gara-snake/hyutil/hyudb"
 
 	"github.com/cheekybits/is"
 

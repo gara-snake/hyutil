@@ -1,8 +1,9 @@
 package hyutil_test
 
 import (
-	"hyutil"
 	"testing"
+
+	"github.com/gara-snake/hyutil"
 
 	"github.com/cheekybits/is"
 )

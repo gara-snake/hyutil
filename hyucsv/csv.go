@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
-	"hyutil"
-	"hyutil/hyudb"
 	"io"
 	"log"
 	"reflect"
 	"strings"
+
+	"github.com/gara-snake/hyutil"
+	"github.com/gara-snake/hyutil/hyudb"
 )
 
 const (

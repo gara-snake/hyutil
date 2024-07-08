@@ -1,9 +1,10 @@
 package hyunet_test
 
 import (
-	"hyutil/hyunet"
 	"log"
 	"testing"
+
+	"github.com/gara-snake/hyutil/hyunet"
 )
 
 func TestIPV4(t *testing.T) {

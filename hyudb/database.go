@@ -7,11 +7,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"hyutil"
 	"log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/gara-snake/hyutil"
 )
 
 // NoID はInt型プライマリーキーの新規値です
@@ -19,7 +20,7 @@ const NoID = 0
 
 const dbTimeFormat = "2006-01-02T15:04:05-07:00"
 
-//DB への参照です
+// DB への参照です
 type DB struct {
 	IsOpen      bool
 	Debug       bool
@@ -28,17 +29,17 @@ type DB struct {
 	hasErr      bool
 }
 
-//Row カラム名ごとに文字列型で値を代入したMap
+// Row カラム名ごとに文字列型で値を代入したMap
 type Row struct {
 	Columns map[string]string
 }
 
-//Table 行の集合体
+// Table 行の集合体
 type Table struct {
 	Rows []Row
 }
 
-//Modeler モデルインターフェイス
+// Modeler モデルインターフェイス
 type Modeler interface {
 	TableName() string
 }
@@ -46,7 +47,7 @@ type Modeler interface {
 // DBID id型 NOT NULL 成約のために必要
 type DBID int64
 
-//DbBool はデータベース上でのBool値の表現文字列を返します。
+// DbBool はデータベース上でのBool値の表現文字列を返します。
 func DbBool(b bool) string {
 	if b {
 		return "1"
@@ -54,7 +55,7 @@ func DbBool(b bool) string {
 	return "0"
 }
 
-//DbEsc は文字列をエスケープ処理します
+// DbEsc は文字列をエスケープ処理します
 func DbEsc(s string) string {
 	if s == "" {
 		return "NULL"
@@ -63,14 +64,14 @@ func DbEsc(s string) string {
 
 }
 
-//DbNum は数値の文字列表現を返します
+// DbNum は数値の文字列表現を返します
 func DbNum(num interface{}) string {
 	return fmt.Sprint(num)
 }
 
 const dbDatetimeFormat = "2006-01-02 15:04:05"
 
-//DbDt はデータベース上でのDatetime値の表現文字列を返します。
+// DbDt はデータベース上でのDatetime値の表現文字列を返します。
 func DbDt(t *hyutil.DateTime) string {
 
 	if t == nil {
@@ -89,12 +90,12 @@ func Nval(s string) string {
 	return s
 }
 
-//ColEsc はカラム名のエスケープです
+// ColEsc はカラム名のエスケープです
 func ColEsc(s string) string {
 	return "`" + s + "`"
 }
 
-//New データベースへの新規接続を開始します
+// New データベースへの新規接続を開始します
 func New(dbType string, connectionstr string) *DB {
 
 	db, err := sql.Open(dbType, connectionstr)
@@ -113,12 +114,12 @@ func New(dbType string, connectionstr string) *DB {
 
 }
 
-//MysqlNew 任意のMysqlサーバへの接続を開始します
+// MysqlNew 任意のMysqlサーバへの接続を開始します
 func MysqlNew(connectionstr string) *DB {
 	return New("mysql", connectionstr)
 }
 
-//BeginTx トランザクションを開始します
+// BeginTx トランザクションを開始します
 func (db *DB) BeginTx() {
 
 	tx, err := db.connection.Begin()
@@ -132,7 +133,7 @@ func (db *DB) BeginTx() {
 
 }
 
-//Rollback トランザクションが開始されている場合、ロールバックします
+// Rollback トランザクションが開始されている場合、ロールバックします
 func (db *DB) Rollback() {
 
 	if db.transaction != nil {
@@ -143,7 +144,7 @@ func (db *DB) Rollback() {
 
 }
 
-//Close DBへの接続を閉じます。未完了のトランザクションは”コミット”されます
+// Close DBへの接続を閉じます。未完了のトランザクションは”コミット”されます
 func (db *DB) Close() {
 
 	if err := recover(); err != nil {
@@ -169,7 +170,7 @@ func (db *DB) Close() {
 
 }
 
-//Exec INSERT、UPDATE、DELETEを実行します RowsAffected LastInsertId
+// Exec INSERT、UPDATE、DELETEを実行します RowsAffected LastInsertId
 func (db *DB) Exec(query string) (int64, int64) {
 
 	if db.Debug {
@@ -263,7 +264,7 @@ func (db *DB) SelectCount(query string) (int, error) {
 	return 0, errors.New("レコードが取得できませんでした。")
 }
 
-//SelectQuery SELECTを実行します
+// SelectQuery SELECTを実行します
 func (db *DB) SelectQuery(query string) *Table {
 
 	if db.Debug {
